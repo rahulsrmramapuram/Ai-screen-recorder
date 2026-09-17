@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Execution Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Execution Dashboard</h1>
+    <p class="page-subtitle">Track, filter, and execute tasks generated across all meetings</p>
+  </div>
+</div>
+
+<!-- Filter Tabs -->
+<div class="tab-nav">
+  <a href="{{ url_for('tasks.index', filter='all') }}" class="tab-item {{ 'active' if current_filter == 'all' }}">
+    All Tasks ({{ counts.all }})
+  </a>
+  <a href="{{ url_for('tasks.index', filter='my_tasks') }}" class="tab-item {{ 'active' if current_filter == 'my_tasks' }}">
+    My Tasks
+  </a>
+  <a href="{{ url_for('tasks.index', filter='pending') }}" class="tab-item {{ 'active' if current_filter == 'pending' }}">
+    Pending ({{ counts.pending }})
+  </a>
+  <a href="{{ url_for('tasks.index', filter='in_progress') }}" class="tab-item {{ 'active' if current_filter == 'in_progress' }}">
+    In Progress ({{ counts.in_progress }})
+  </a>
+  <a href="{{ url_for('tasks.index', filter='completed') }}" class="tab-item {{ 'active' if current_filter == 'completed' }}">
+    Completed ({{ counts.completed }})
+  </a>
+  <a href="{{ url_for('tasks.index', filter='overdue') }}" class="tab-item {{ 'active' if current_filter == 'overdue' }}">
+    Overdue ({{ counts.overdue }})
+  </a>
+  <a href="{{ url_for('tasks.index', filter='blocked') }}" class="tab-item {{ 'active' if current_filter == 'blocked' }}">
+    Blocked ({{ counts.blocked }})
+  </a>
+  <a href="{{ url_for('tasks.index', filter='upcoming') }}" class="tab-item {{ 'active' if current_filter == 'upcoming' }}">
+    Upcoming ({{ counts.upcoming }})
+  </a>
+</div>
+
+<div class="glass-card">
+  {% if tasks %}
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>Owner</th>
+          <th>Deadline</th>
+          <th>Meeting Origin</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task in tasks %}
+        <tr id="task-row-{{ task.id }}">
+          <td style="font-weight: 600;">
+            <div>{{ task.title }}</div>
+            {% if task.description and task.description != task.title %}
+              <small style="color: var(--text-muted); font-weight: normal; display: block; margin-top: 2px;">{{ task.description }}</small>
+            {% endif %}
+          </td>
+          <td>{{ task.owner_name or 'Unassigned' }}</td>
+          <td style="color: var(--text-muted);">
+            {{ task.deadline.strftime('%b %d, %Y') if task.deadline else 'No deadline' }}
+          </td>
+          <td>
+            {% if task.meeting %}
+              <a href="{{ url_for('meetings.detail', id=task.meeting.id) }}">{{ task.meeting.title }}</a>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>
+            <select class="form-control task-status-select" data-task-id="{{ task.id }}" style="padding: 4px 8px; font-size: 0.82rem; width: 135px;">
+              <option value="Pending" {{ 'selected' if task.computed_status == 'Pending' }}>Pending</option>
+              <option value="In Progress" {{ 'selected' if task.computed_status == 'In Progress' }}>In Progress</option>
+              <option value="Completed" {{ 'selected' if task.computed_status == 'Completed' }}>Completed</option>
+              <option value="Blocked" {{ 'selected' if task.computed_status == 'Blocked' }}>Blocked</option>
+              <option value="Overdue" {{ 'selected' if task.computed_status == 'Overdue' }}>Overdue</option>
+            </select>
+          </td>
+          <td>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary btn-sm btn-edit-task" data-task-id="{{ task.id }}">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteTask({{ task.id }})">Delete</button>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Inline Edit Row -->
+        <tr id="task-edit-row-{{ task.id }}" style="display: none; background: rgba(15,23,42,0.8);">
+          <td colspan="6">
+            <div style="padding: 12px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 12px; align-items: center;">
+              <input type="text" id="edit-title-{{ task.id }}" class="form-control" value="{{ task.title }}">
+              <input type="text" id="edit-owner-{{ task.id }}" class="form-control" value="{{ task.owner_name or '' }}" placeholder="Owner">
+              <input type="date" id="edit-deadline-{{ task.id }}" class="form-control" value="{{ task.deadline.strftime('%Y-%m-%d') if task.deadline else '' }}">
+              <select id="edit-status-{{ task.id }}" class="form-control">
+                <option value="Pending" {{ 'selected' if task.status == 'Pending' }}>Pending</option>
+                <option value="In Progress" {{ 'selected' if task.status == 'In Progress' }}>In Progress</option>
+                <option value="Completed" {{ 'selected' if task.status == 'Completed' }}>Completed</option>
+                <option value="Blocked" {{ 'selected' if task.status == 'Blocked' }}>Blocked</option>
+                <option value="Overdue" {{ 'selected' if task.status == 'Overdue' }}>Overdue</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="saveInlineTask({{ task.id }})">Save</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+    <h3 style="font-size: 1.1rem; color: var(--text-main); margin-bottom: 8px;">No Tasks Found</h3>
+    <p>No tasks match the selected filter category '{{ current_filter }}'.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ meeting.title }}{% endblock %}
+
+{% block content %}
+<!-- Status Container for JS Polling -->
+<div id="meeting-status-container" data-meeting-id="{{ meeting.id }}" data-status="{{ meeting.processing_status }}"></div>
+
+<div class="page-header">
+  <div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <h1 class="page-title">{{ meeting.title }}</h1>
+      <span class="status-badge {{ meeting.processing_status }}">
+        {{ meeting.processing_status }}
+      </span>
+    </div>
+    <p class="page-subtitle">
+      Date: {{ meeting.meeting_date.strftime('%B %d, %Y') if meeting.meeting_date else 'N/A' }} |
+      Participants:
+      {% if meeting.participants %}
+        {{ meeting.participants|map(attribute='name')|join(', ') }}
+      {% else %}
+        Unspecified
+      {% endif %}
+    </p>
+  </div>
+  <div>
+    <a href="{{ url_for('meetings.index') }}" class="btn btn-secondary">Back to Meetings</a>
+  </div>
+</div>
+
+{% if meeting.processing_status in ['pending', 'processing'] %}
+<div class="glass-card" style="text-align: center; padding: 40px; margin-bottom: 24px;">
+  <div class="status-badge processing" style="font-size: 1rem; padding: 8px 16px; margin-bottom: 16px;">
+    AI Processing in Progress...
+  </div>
+  <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto;">
+    Solar is currently processing your meeting recording: converting audio, running speech transcription, and extracting action items, decisions, and blockers. This page will automatically update once completed.
+  </p>
+</div>
+{% elif meeting.processing_status == 'failed' %}
+<div class="alert alert-danger">
+  <strong>Processing Failed:</strong> {{ meeting.processing_error or 'An unknown error occurred during meeting transcription or AI extraction.' }}
+</div>
+{% endif %}
+
+{% if meeting.processing_status == 'completed' or meeting.transcript %}
+<!-- Navigation Tabs -->
+<div class="tab-nav">
+  <div class="tab-item active" onclick="switchTab('tasks-tab')">Action Items ({{ meeting.tasks|length }})</div>
+  <div class="tab-item" onclick="switchTab('decisions-tab')">Decisions ({{ meeting.decisions|length }})</div>
+  <div class="tab-item" onclick="switchTab('blockers-tab')">Blockers ({{ meeting.blockers|length }})</div>
+  <div class="tab-item" onclick="switchTab('transcript-tab')">Full Transcript</div>
+</div>
+
+<!-- Tab Content: Tasks -->
+<div id="tasks-tab" class="tab-content">
+  <div class="glass-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="font-size: 1.2rem; font-weight: 700;">Extracted Action Items</h2>
+      <button class="btn btn-primary btn-sm" onclick="toggleAddTaskForm()">+ Add Task Manually</button>
+    </div>
+
+    <!-- Add Task Form (hidden by default) -->
+    <div id="add-task-form" style="display: none; padding: 16px; background: rgba(15,23,42,0.6); border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 20px;">
+      <h3 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 12px;">Create New Task</h3>
+      <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <input type="text" id="new-task-title" class="form-control" placeholder="Task Title">
+        <input type="text" id="new-task-owner" class="form-control" placeholder="Assignee Owner">
+        <input type="date" id="new-task-deadline" class="form-control">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="btn btn-secondary btn-sm" onclick="toggleAddTaskForm()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="createTaskManual({{ meeting.id }})">Save Task</button>
+      </div>
+    </div>
+
+    {% if meeting.tasks %}
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Task Title</th>
+            <th>Owner</th>
+            <th>Deadline</th>
+            <th>Status</th>
+            <th>Source Quote</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in meeting.tasks %}
+          <tr id="task-row-{{ task.id }}">
+            <td style="font-weight: 600;">
+              <div>{{ task.title }}</div>
+              {% if task.description and task.description != task.title %}
+                <small style="color: var(--text-muted); font-weight: normal; display: block; margin-top: 2px;">{{ task.description }}</small>
+              {% endif %}
+            </td>
+            <td>{{ task.owner_name or 'Unassigned' }}</td>
+            <td style="color: var(--text-muted);">
+              {{ task.deadline.strftime('%b %d, %Y') if task.deadline else 'No deadline' }}
+            </td>
+            <td>
+              <select class="form-control task-status-select" data-task-id="{{ task.id }}" style="padding: 4px 8px; font-size: 0.82rem; width: 130px;">
+                <option value="Pending" {{ 'selected' if task.computed_status == 'Pending' }}>Pending</option>
+                <option value="In Progress" {{ 'selected' if task.computed_status == 'In Progress' }}>In Progress</option>
+                <option value="Completed" {{ 'selected' if task.computed_status == 'Completed' }}>Completed</option>
+                <option value="Blocked" {{ 'selected' if task.computed_status == 'Blocked' }}>Blocked</option>
+                <option value="Overdue" {{ 'selected' if task.computed_status == 'Overdue' }}>Overdue</option>
+              </select>
+            </td>
+            <td style="font-size: 0.85rem; color: var(--text-muted); max-width: 260px;">
+              {% if task.source_quote %}
+                <span style="font-style: italic; background: rgba(255,255,255,0.04); padding: 4px 8px; border-radius: 4px; display: block;">"{{ task.source_quote }}"</span>
+              {% else %}
+                <span style="color: var(--text-dim);">-</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-secondary btn-sm btn-edit-task" data-task-id="{{ task.id }}">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteTask({{ task.id }})">Delete</button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Inline Edit Form Row -->
+          <tr id="task-edit-row-{{ task.id }}" style="display: none; background: rgba(15,23,42,0.8);">
+            <td colspan="6">
+              <div style="padding: 12px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 12px; align-items: center;">
+                <input type="text" id="edit-title-{{ task.id }}" class="form-control" value="{{ task.title }}">
+                <input type="text" id="edit-owner-{{ task.id }}" class="form-control" value="{{ task.owner_name or '' }}" placeholder="Owner">
+                <input type="date" id="edit-deadline-{{ task.id }}" class="form-control" value="{{ task.deadline.strftime('%Y-%m-%d') if task.deadline else '' }}">
+                <select id="edit-status-{{ task.id }}" class="form-control">
+                  <option value="Pending" {{ 'selected' if task.status == 'Pending' }}>Pending</option>
+                  <option value="In Progress" {{ 'selected' if task.status == 'In Progress' }}>In Progress</option>
+                  <option value="Completed" {{ 'selected' if task.status == 'Completed' }}>Completed</option>
+                  <option value="Blocked" {{ 'selected' if task.status == 'Blocked' }}>Blocked</option>
+                  <option value="Overdue" {{ 'selected' if task.status == 'Overdue' }}>Overdue</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="saveInlineTask({{ task.id }})">Save</button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted);">No action items extracted from this meeting.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tab Content: Decisions -->
+<div id="decisions-tab" class="tab-content" style="display: none;">
+  <div class="glass-card">
+    <h2 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 16px;">Key Decisions Confirmed</h2>
+    {% if meeting.decisions %}
+    <ul style="list-style: none; display: flex; flex-direction: column; gap: 12px;">
+      {% for d in meeting.decisions %}
+      <li style="padding: 12px 16px; background: rgba(15,23,42,0.5); border: 1px solid var(--border-color); border-radius: var(--radius-md); display: flex; align-items: flex-start; gap: 12px;">
+        <span style="color: var(--accent-primary); font-weight: 800; font-size: 1.1rem;">✓</span>
+        <div>{{ d.content }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: var(--text-muted);">No explicit decisions extracted from this meeting.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tab Content: Blockers -->
+<div id="blockers-tab" class="tab-content" style="display: none;">
+  <div class="glass-card">
+    <h2 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 16px;">Identified Blockers</h2>
+    {% if meeting.blockers %}
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      {% for b in meeting.blockers %}
+      <div style="padding: 16px; background: var(--status-blocked-bg); border: 1px solid rgba(249,115,22,0.3); border-radius: var(--radius-md);">
+        <div style="font-weight: 600; color: var(--status-blocked); margin-bottom: 4px;">{{ b.description }}</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          Owner / Affected: {{ b.owner_name or 'Team' }} | Status: {{ b.status }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted);">No active blockers identified.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tab Content: Transcript -->
+<div id="transcript-tab" class="tab-content" style="display: none;">
+  <div class="glass-card">
+    <h2 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 16px;">Full Meeting Transcript</h2>
+    {% if meeting.transcript %}
+    <div style="white-space: pre-wrap; font-family: monospace; background: rgba(15,23,42,0.8); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); max-height: 500px; overflow-y: auto; line-height: 1.6; color: #cbd5e1;">
+{{ meeting.transcript.content }}
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted);">No transcript available.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
+
+  const target = document.getElementById(tabId);
+  if (target) target.style.display = 'block';
+
+  event.target.classList.add('active');
+}
+
+function toggleAddTaskForm() {
+  const form = document.getElementById('add-task-form');
+  if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function createTaskManual(meetingId) {
+  const title = document.getElementById('new-task-title').value;
+  const owner_name = document.getElementById('new-task-owner').value;
+  const deadline = document.getElementById('new-task-deadline').value;
+
+  if (!title) {
+    alert('Task title is required.');
+    return;
+  }
+
+  fetch(`/meetings/${meetingId}/tasks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({ title, owner_name, deadline })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      window.location.reload();
+    } else {
+      alert(data.error || 'Failed to create task.');
+    }
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block title %}Process New Meeting{% endblock %}
+
+{% block content %}
+<div style="max-width: 680px; margin: 20px auto;">
+  <div class="glass-card">
+    <div style="margin-bottom: 24px;">
+      <h1 class="page-title">Process New Meeting</h1>
+      <p class="page-subtitle">Upload recording audio/video or paste transcript text for AI extraction</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('meetings.new') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label class="form-label" for="title">Meeting Title *</label>
+        <input type="text" id="title" name="title" class="form-control" placeholder="Product Engineering Sync" required>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <label class="form-label" for="meeting_date">Meeting Date</label>
+          <input type="date" id="meeting_date" name="meeting_date" class="form-control" value="{{ now_date }}">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="participants">Participants (Comma separated)</label>
+          <input type="text" id="participants" name="participants" class="form-control" placeholder="Alex, Sarah, Michael, David">
+        </div>
+      </div>
+
+      <div style="margin: 24px 0; border-top: 1px solid var(--border-color); padding-top: 20px;">
+        <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px;">Option A: Upload Recording File</h3>
+        <div class="form-group">
+          <label class="form-label" for="file">Audio / Video / Text File (Max 50MB)</label>
+          <input type="file" id="file" name="file" class="form-control" accept=".mp3,.mp4,.wav,.m4a,.txt,.pdf">
+          <small style="color: var(--text-dim); display: block; margin-top: 4px;">Supported formats: .mp3, .mp4, .wav, .m4a, .txt, .pdf</small>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px;">Option B: Paste Transcript Text</h3>
+        <div class="form-group">
+          <label class="form-label" for="raw_transcript">Transcript Content</label>
+          <textarea id="raw_transcript" name="raw_transcript" class="form-control" placeholder="Paste meeting transcript text here..." rows="6"></textarea>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <a href="{{ url_for('meetings.index') }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Start AI Processing</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
