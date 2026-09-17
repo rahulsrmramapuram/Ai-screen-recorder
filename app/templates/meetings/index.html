@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Meetings History{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Meetings History</h1>
+    <p class="page-subtitle">Review past meeting transcripts, extracted decisions, and tasks</p>
+  </div>
+  <div>
+    <a href="{{ url_for('meetings.new') }}" class="btn btn-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      Upload Recording
+    </a>
+  </div>
+</div>
+
+<div class="glass-card">
+  {% if meetings %}
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Date</th>
+          <th>Participants</th>
+          <th>Status</th>
+          <th>Extracted Tasks</th>
+          <th>Decisions</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for meeting in meetings %}
+        <tr>
+          <td style="font-weight: 600;">
+            <a href="{{ url_for('meetings.detail', id=meeting.id) }}">{{ meeting.title }}</a>
+          </td>
+          <td style="color: var(--text-muted);">{{ meeting.meeting_date.strftime('%b %d, %Y') if meeting.meeting_date else 'N/A' }}</td>
+          <td style="color: var(--text-muted); max-width: 200px;">
+            {% if meeting.participants %}
+              {{ meeting.participants|map(attribute='name')|join(', ') }}
+            {% else %}
+              <em>None recorded</em>
+            {% endif %}
+          </td>
+          <td>
+            <span class="status-badge {{ meeting.processing_status }}">
+              {{ meeting.processing_status }}
+            </span>
+          </td>
+          <td>{{ meeting.tasks|length }}</td>
+          <td>{{ meeting.decisions|length }}</td>
+          <td>
+            <a href="{{ url_for('meetings.detail', id=meeting.id) }}" class="btn btn-secondary btn-sm">Review Meeting</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+    <h3 style="font-size: 1.2rem; color: var(--text-main); margin-bottom: 8px;">No Meetings Found</h3>
+    <p>Upload your first meeting recording or paste a transcript to begin automated AI extraction.</p>
+    <a href="{{ url_for('meetings.new') }}" class="btn btn-primary" style="margin-top: 20px;">Upload Recording</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

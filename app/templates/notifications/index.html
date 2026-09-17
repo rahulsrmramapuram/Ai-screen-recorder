@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Notifications</h1>
+    <p class="page-subtitle">Smart automated alerts for deadlines, overdue tasks, and blockers</p>
+  </div>
+  <div>
+    <button class="btn btn-secondary" onclick="markAllNotificationsRead()">Mark All as Read</button>
+  </div>
+</div>
+
+<div class="glass-card">
+  {% if notifications %}
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    {% for n in notifications %}
+    <div id="notif-item-{{ n.id }}" 
+         style="padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: {{ 'rgba(15,23,42,0.4)' if n.is_read else 'rgba(99,102,241,0.12)' }};"
+         onclick="markSingleRead({{ n.id }})">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span class="status-badge {{ n.notification_type }}">
+          {{ n.notification_type }}
+        </span>
+        <div>
+          <div style="font-size: 0.95rem; font-weight: {{ 'normal' if n.is_read else '600' }}; color: var(--text-main);">
+            {{ n.message }}
+          </div>
+          <small style="color: var(--text-dim);">
+            {{ n.created_at.strftime('%b %d, %Y at %I:%M %p') if n.created_at else '' }}
+          </small>
+        </div>
+      </div>
+      <div>
+        {% if not n.is_read %}
+          <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-primary); background: rgba(99,102,241,0.2); padding: 2px 8px; border-radius: 9999px;">NEW</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+    <h3 style="font-size: 1.1rem; color: var(--text-main); margin-bottom: 8px;">No Notifications</h3>
+    <p>You're all caught up! No deadline or blocker alerts at this time.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function markSingleRead(id) {
+  fetch(`/notifications/${id}/read`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken() }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      window.location.reload();
+    }
+  });
+}
+
+function markAllNotificationsRead() {
+  fetch('/notifications/read-all', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken() }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      window.location.reload();
+    }
+  });
+}
+</script>
+{% endblock %}
